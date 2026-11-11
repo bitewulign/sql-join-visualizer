@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL JOIN Visualizer</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter & Fira Code -->
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace'],
+                    },
+                    colors: {
+                        tableA: '#3b82f6', // Blue
+                        tableB: '#8b5cf6', // Purple
+                        match: '#10b981',  // Emerald
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #090d16;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #334155;
+        }
+        .venn-circle {
+            transition: all 0.4s ease-in-out;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col font-sans antialiased bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white">
+
+    <!-- Top Navigation / Header -->
+    <header class="bg-slate-900/80 backdrop-blur border-b border-slate-800 sticky top-0 z-50 px-4 lg:px-8 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="bg-gradient-to-tr from-blue-600 to-purple-600 p-2.5 rounded-xl text-white shadow-lg shadow-indigo-500/20">
+                <i class="fa-solid fa-diagram-project text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
+                    SQL JOIN Visualizer
+                </h1>
+                <p class="text-xs text-slate-400">Interactive Relational Algebra & Data Set Explorer</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button onclick="resetToDefaults()" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors flex items-center gap-1.5">
+                <i class="fa-solid fa-rotate-left text-xs"></i> Reset Sample Data
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- LEFT COLUMN: Join Mode & Venn Diagram (5 cols) -->
+        <div class="lg:col-span-5 flex flex-col gap-6">
+            
+            <!-- JOIN Selector Cards -->
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 shadow-xl backdrop-blur">
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 block">Select Join Operation</label>
+                <div class="grid grid-cols-2 gap-2.5">
+                    <button onclick="setJoinType('INNER')" id="btn-INNER" class="join-btn flex flex-col items-start p-3 rounded-xl border text-left transition-all bg-slate-800/80 border-slate-700 hover:border-slate-600">
+                        <span class="text-xs font-mono font-bold text-emerald-400">INNER JOIN</span>
+                        <span class="text-[11px] text-slate-400 mt-0.5">Only matching rows in both tables</span>
+                    </button>
+                    <button onclick="setJoinType('LEFT')" id="btn-LEFT" class="join-btn flex flex-col items-start p-3 rounded-xl border text-left transition-all bg-slate-800/80 border-slate-700 hover:border-slate-600">
+                        <span class="text-xs font-mono font-bold text-blue-400">LEFT JOIN</span>
+                        <span class="text-[11px] text-slate-400 mt-0.5">All Table A + matching Table B</span>
+                    </button>
+                    <button onclick="setJoinType('RIGHT')" id="btn-RIGHT" class="join-btn flex flex-col items-start p-3 rounded-xl border text-left transition-all bg-slate-800/80 border-slate-700 hover:border-slate-600">
+                        <span class="text-xs font-mono font-bold text-purple-400">RIGHT JOIN</span>
+                        <span class="text-[11px] text-slate-400 mt-0.5">All Table B + matching Table A</span>
+                    </button>
+                    <button onclick="setJoinType('FULL')" id="btn-FULL" class="join-btn flex flex-col items-start p-3 rounded-xl border text-left transition-all bg-slate-800/80 border-slate-700 hover:border-slate-600">
+                        <span class="text-xs font-mono font-bold text-amber-400">FULL OUTER JOIN</span>
+                        <span class="text-[11px] text-slate-400 mt-0.5">All rows from both tables</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dynamic Venn Diagram Display -->
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col items-center justify-center relative min-h-[260px]">
+                <div class="w-full flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Set Logic Venn Diagram</span>
+                    <span id="venn-badge" class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">INNER JOIN</span>
+                </div>
+
+                <!-- Venn SVG -->
+                <div class="relative w-full max-w-[320px] aspect-[16/9] my-2">
+                    <svg viewBox="0 0 300 160" class="w-full h-full overflow-visible">
+                        <defs>
+                            <!-- Circle Masks / Clips -->
+                            <clipPath id="clip-left"><circle cx="110" cy="80" r="65" /></clipPath>
+                            <clipPath id="clip-right"><circle cx="190" cy="80" r="65" /></clipPath>
+                        </defs>
+
+                        <!-- Left Circle (Table A) Base -->
+                        <circle id="venn-left-base" cx="110" cy="80" r="65" class="venn-circle fill-blue-500/10 stroke-blue-500/60 stroke-2" />
+                        
+                        <!-- Right Circle (Table B) Base -->
+                        <circle id="venn-right-base" cx="190" cy="80" r="65" class="venn-circle fill-purple-500/10 stroke-purple-500/60 stroke-2" />
+
+                        <!-- Active Highlight Shapes -->
+                        <!-- Left Only Highlight -->
+                        <circle id="venn-left-only" cx="110" cy="80" r="65" class="venn-circle fill-blue-500/40 opacity-0 transition-opacity duration-300" />
+                        
+                        <!-- Right Only Highlight -->
+                        <circle id="venn-right-only" cx="190" cy="80" r="65" class="venn-circle fill-purple-500/40 opacity-0 transition-opacity duration-300" />
+
+                        <!-- Intersection Highlight -->
+                        <circle id="venn-intersect" cx="110" cy="80" r="65" clip-path="url(#clip-right)" class="venn-circle fill-emerald-500/50 opacity-0 transition-opacity duration-300" />
+
+                        <!-- Labels -->
+                        <text x="80" y="85" text-anchor="middle" class="fill-blue-200 text-xs font-bold font-sans pointer-events-none">Table A</text>
+                        <text x="80" y="100" text-anchor="middle" class="fill-slate-400 text-[10px] font-sans pointer-events-none">(Employees)</text>
+                        
+                        <text x="220" y="85" text-anchor="middle" class="fill-purple-200 text-xs font-bold font-sans pointer-events-none">Table B</text>
+                        <text x="220" y="100" text-anchor="middle" class="fill-slate-400 text-[10px] font-sans pointer-events-none">(Departments)</text>
+
+                        <text x="150" y="85" text-anchor="middle" class="fill-emerald-200 text-[11px] font-bold font-sans pointer-events-none">Keys Match</text>
+                    </svg>
+                </div>
+
+                <!-- Explanation Box -->
+                <p id="join-explanation" class="text-xs text-slate-300 bg-slate-950/60 border border-slate-800 p-3 rounded-xl w-full leading-relaxed mt-2">
+                    Explanation loading...
+                </p>
+            </div>
+
+            <!-- SQL Query Preview Box -->
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 shadow-xl">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-code text-indigo-400"></i> Generated SQL Query
+                    </span>
+                    <button onclick="copySQL()" class="text-[11px] text-slate-400 hover:text-white bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700 transition-colors">
+                        <i class="fa-regular fa-copy mr-1"></i> Copy
+                    </button>
+                </div>
+                <pre id="sql-preview" class="font-mono text-xs text-emerald-400 bg-slate-950 p-3 rounded-xl border border-slate-800/80 overflow-x-auto leading-relaxed">
+-- Generated SQL Query
+                </pre>
+            </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN: Interactive Input Tables & Output Result (7 cols) -->
+        <div class="lg:col-span-7 flex flex-col gap-6">
+
+            <!-- Source Tables Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <!-- Table A: Employees -->
+                <div class="bg-slate-900/70 border border-blue-500/30 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <i class="fa-solid fa-users text-blue-500"></i> Table A: Employees
+                            </h3>
+                            <button onclick="addRowA()" class="text-[11px] bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-2 py-1 rounded-lg transition-colors flex items-center gap-1">
+                                <i class="fa-solid fa-plus text-[10px]"></i> Add Row
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-950/60 text-slate-400 font-mono text-[11px]">
+                                    <tr>
+                                        <th class="p-1.5 rounded-l">Emp ID</th>
+                                        <th class="p-1.5">Name</th>
+                                        <th class="p-1.5">Dept ID</th>
+                                        <th class="p-1.5 rounded-r w-6"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-a-rows" class="divide-y divide-slate-800/50">
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table B: Departments -->
+                <div class="bg-slate-900/70 border border-purple-500/30 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-xs font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <i class="fa-solid fa-building text-purple-500"></i> Table B: Departments
+                            </h3>
+                            <button onclick="addRowB()" class="text-[11px] bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/30 px-2 py-1 rounded-lg transition-colors flex items-center gap-1">
+                                <i class="fa-solid fa-plus text-[10px]"></i> Add Row
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-950/60 text-slate-400 font-mono text-[11px]">
+                                    <tr>
+                                        <th class="p-1.5 rounded-l">Dept ID</th>
+                                        <th class="p-1.5">Dept Name</th>
+                                        <th class="p-1.5 rounded-r w-6"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-b-rows" class="divide-y divide-slate-800/50">
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Result Set Table -->
+            <div class="bg-slate-900/80 border border-emerald-500/30 rounded-2xl p-5 shadow-2xl flex-1 flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <span class="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <i class="fa-solid fa-table-cells"></i>
+                        </span>
+                        <div>
+                            <h3 class="text-sm font-bold text-emerald-400 tracking-wide">Resulting Dataset Output</h3>
+                            <p class="text-[11px] text-slate-400">Live computed join evaluation result</p>
+                        </div>
+                    </div>
+                    <span id="result-count" class="text-xs font-mono font-semibold bg-emerald-900/40 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-full">
+                        0 Rows
+                    </span>
+                </div>
+
+                <!-- Result Table -->
+                <div class="overflow-x-auto flex-1 border border-slate-800 rounded-xl bg-slate-950/60">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead class="bg-slate-900 text-slate-300 font-mono border-b border-slate-800 sticky top-0">
+                            <tr>
+                                <th class="p-2.5 text-blue-400 border-r border-slate-800">A.EmpID</th>
+                                <th class="p-2.5 text-blue-400 border-r border-slate-800">A.EmpName</th>
+                                <th class="p-2.5 text-blue-400 border-r border-slate-800">A.DeptID</th>
+                                <th class="p-2.5 text-purple-400 border-r border-slate-800">B.DeptID</th>
+                                <th class="p-2.5 text-purple-400">B.DeptName</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-result-rows" class="divide-y divide-slate-800/60 font-mono">
+                            <!-- Computed Results -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs font-medium opacity-0 transition-opacity duration-300 pointer-events-none flex items-center gap-2 z-50">
+        <i class="fa-solid fa-check-circle"></i> <span id="toast-msg">Copied!</span>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        // State Management
+        let currentJoin = 'INNER';
+
+        // Sample Datasets
+        let tableA = [
+            { id: 1, empId: 101, name: 'Alice Smith', deptId: 1 },
+            { id: 2, empId: 102, name: 'Bob Jones', deptId: 2 },
+            { id: 3, empId: 103, name: 'Charlie Brown', deptId: 1 },
+            { id: 4, empId: 104, name: 'Diana Prince', deptId: 3 },
+            { id: 5, empId: 105, name: 'Evan Wright', deptId: 5 } // Unmatched Dept ID
+        ];
+
+        let tableB = [
+            { id: 1, deptId: 1, name: 'Engineering' },
+            { id: 2, deptId: 2, name: 'Marketing' },
+            { id: 3, deptId: 3, name: 'Design' },
+            { id: 4, deptId: 4, name: 'Finance' } // Unmatched Dept ID
+        ];
+
+        const joinMeta = {
+            INNER: {
+                badgeClass: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+                btnActive: 'bg-emerald-600/20 border-emerald-500 text-emerald-300 shadow-lg shadow-emerald-500/10',
+                leftOnly: false,
+                rightOnly: false,
+                intersect: true,
+                explanation: '<b>INNER JOIN:</b> Returns records that have matching values in both tables. Rows from either table that do not meet the join condition are excluded.'
+            },
+            LEFT: {
+                badgeClass: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+                btnActive: 'bg-blue-600/20 border-blue-500 text-blue-300 shadow-lg shadow-blue-500/10',
+                leftOnly: true,
+                rightOnly: false,
+                intersect: true,
+                explanation: '<b>LEFT JOIN:</b> Returns all records from Table A (Employees), and matched records from Table B (Departments). Unmatched rows from Table A show <span class="text-rose-400 font-mono font-bold">NULL</span> for Table B columns.'
+            },
+            RIGHT: {
+                badgeClass: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+                btnActive: 'bg-purple-600/20 border-purple-500 text-purple-300 shadow-lg shadow-purple-500/10',
+                leftOnly: false,
+                rightOnly: true,
+                intersect: true,
+                explanation: '<b>RIGHT JOIN:</b> Returns all records from Table B (Departments), and matched records from Table A (Employees). Unmatched rows from Table B show <span class="text-rose-400 font-mono font-bold">NULL</span> for Table A columns.'
+            },
+            FULL: {
+                badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+                btnActive: 'bg-amber-600/20 border-amber-500 text-amber-300 shadow-lg shadow-amber-500/10',
+                leftOnly: true,
+                rightOnly: true,
+                intersect: true,
+                explanation: '<b>FULL OUTER JOIN:</b> Returns all records when there is a match in either left or right table. Non-matching fields are populated with <span class="text-rose-400 font-mono font-bold">NULL</span>.'
+            }
+        };
+
+        // Render Table Inputs
+        function renderInputs() {
+            const tbodyA = document.getElementById('table-a-rows');
+            const tbodyB = document.getElementById('table-b-rows');
+
+            tbodyA.innerHTML = tableA.map((row, idx) => `
+                <tr class="hover:bg-slate-800/40">
+                    <td class="p-1"><input type="number" value="${row.empId}" onchange="updateRowA(${idx}, 'empId', this.value)" class="w-12 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-200 focus:outline-none focus:border-blue-500 font-mono"></td>
+                    <td class="p-1"><input type="text" value="${escapeHtml(row.name)}" onchange="updateRowA(${idx}, 'name', this.value)" class="w-full bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-200 focus:outline-none focus:border-blue-500"></td>
+                    <td class="p-1"><input type="number" value="${row.deptId !== null ? row.deptId : ''}" onchange="updateRowA(${idx}, 'deptId', this.value)" class="w-12 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-blue-400 font-bold focus:outline-none focus:border-blue-500 font-mono"></td>
+                    <td class="p-1 text-center"><button onclick="deleteRowA(${idx})" class="text-slate-500 hover:text-rose-400 transition-colors"><i class="fa-solid fa-xmark text-xs"></i></button></td>
+                </tr>
+            `).join('');
+
+            tbodyB.innerHTML = tableB.map((row, idx) => `
+                <tr class="hover:bg-slate-800/40">
+                    <td class="p-1"><input type="number" value="${row.deptId !== null ? row.deptId : ''}" onchange="updateRowB(${idx}, 'deptId', this.value)" class="w-14 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-purple-400 font-bold focus:outline-none focus:border-purple-500 font-mono"></td>
+                    <td class="p-1"><input type="text" value="${escapeHtml(row.name)}" onchange="updateRowB(${idx}, 'name', this.value)" class="w-full bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-200 focus:outline-none focus:border-purple-500"></td>
+                    <td class="p-1 text-center"><button onclick="deleteRowB(${idx})" class="text-slate-500 hover:text-rose-400 transition-colors"><i class="fa-solid fa-xmark text-xs"></i></button></td>
+                </tr>
+            `).join('');
+
+            computeJoin();
+        }
+
+        // Table A Operations
+        function addRowA() {
+            const nextEmpId = tableA.length > 0 ? Math.max(...tableA.map(r => r.empId || 0)) + 1 : 101;
+            tableA.push({ id: Date.now(), empId: nextEmpId, name: 'New Employee', deptId: 1 });
+            renderInputs();
+        }
+
+        function updateRowA(index, field, value) {
+            if (field === 'empId' || field === 'deptId') {
+                tableA[index][field] = value === '' ? null : parseInt(value, 10);
+            } else {
+                tableA[index][field] = value;
+            }
+            computeJoin();
+        }
+
+        function deleteRowA(index) {
+            tableA.splice(index, 1);
+            renderInputs();
+        }
+
+        // Table B Operations
+        function addRowB() {
+            const nextDeptId = tableB.length > 0 ? Math.max(...tableB.map(r => r.deptId || 0)) + 1 : 1;
+            tableB.push({ id: Date.now(), deptId: nextDeptId, name: 'New Dept' });
+            renderInputs();
+        }
+
+        function updateRowB(index, field, value) {
+            if (field === 'deptId') {
+                tableB[index][field] = value === '' ? null : parseInt(value, 10);
+            } else {
+                tableB[index][field] = value;
+            }
+            computeJoin();
+        }
+
+        function deleteRowB(index) {
+            tableB.splice(index, 1);
+            renderInputs();
+        }
+
+        // Set Active JOIN Mode
+        function setJoinType(type) {
+            currentJoin = type;
+
+            // Update UI Button Highlights
+            document.querySelectorAll('.join-btn').forEach(btn => {
+                btn.className = 'join-btn flex flex-col items-start p-3 rounded-xl border text-left transition-all bg-slate-800/80 border-slate-700 hover:border-slate-600';
+            });
+            const activeBtn = document.getElementById(`btn-${type}`);
+            activeBtn.className = `join-btn flex flex-col items-start p-3 rounded-xl border text-left transition-all ${joinMeta[type].btnActive}`;
+
+            // Update Venn Diagram highlights
+            const meta = joinMeta[type];
+            document.getElementById('venn-badge').innerText = `${type} JOIN`;
+            document.getElementById('venn-badge').className = `text-[11px] font-mono px-2 py-0.5 rounded-full border ${meta.badgeClass}`;
+
+            document.getElementById('venn-left-only').style.opacity = meta.leftOnly ? '1' : '0';
+            document.getElementById('venn-right-only').style.opacity = meta.rightOnly ? '1' : '0';
+            document.getElementById('venn-intersect').style.opacity = meta.intersect ? '1' : '0';
+
+            document.getElementById('join-explanation').innerHTML = meta.explanation;
+
+            updateSQLPreview();
+            computeJoin();
+        }
+
+        // Compute Join Results
+        function computeJoin() {
+            let results = [];
+
+            if (currentJoin === 'INNER') {
+                tableA.forEach(a => {
+                    const matches = tableB.filter(b => a.deptId !== null && a.deptId === b.deptId);
+                    matches.forEach(b => {
+                        results.push({ aEmpId: a.empId, aName: a.name, aDeptId: a.deptId, bDeptId: b.deptId, bName: b.name, matched: true });
+                    });
+                });
+            } else if (currentJoin === 'LEFT') {
+                tableA.forEach(a => {
+                    const matches = tableB.filter(b => a.deptId !== null && a.deptId === b.deptId);
+                    if (matches.length > 0) {
+                        matches.forEach(b => {
+                            results.push({ aEmpId: a.empId, aName: a.name, aDeptId: a.deptId, bDeptId: b.deptId, bName: b.name, matched: true });
+                        });
+                    } else {
+                        results.push({ aEmpId: a.empId, aName: a.name, aDeptId: a.deptId, bDeptId: null, bName: null, matched: false });
+                    }
+                });
+            } else if (currentJoin === 'RIGHT') {
+                tableB.forEach(b => {
+                    const matches = tableA.filter(a => a.deptId !== null && a.deptId === b.deptId);
+                    if (matches.length > 0) {
+                        matches.forEach(a => {
+                            results.push({ aEmpId: a.empId, aName: a.name, aDeptId: a.deptId, bDeptId: b.deptId, bName: b.name, matched: true });
+                        });
+                    } else {
+                        results.push({ aEmpId: null, aName: null, aDeptId: null, bDeptId: b.deptId, bName: b.name, matched: false });
+                    }
+                });
+            } else if (currentJoin === 'FULL') {
+                const matchedBDeptIds = new Set();
+
+                tableA.forEach(a => {
+                    const matches = tableB.filter(b => a.deptId !== null && a.deptId === b.deptId);
+                    if (matches.length > 0) {
+                        matches.forEach(b => {
+                            matchedBDeptIds.add(b.deptId);
+                            results.push({ aEmpId: a.empId, aName: a.name, aDeptId: a.deptId, bDeptId: b.deptId, bName: b.name, matched: true });
+                        });
+                    } else {
+                        results.push({ aEmpId: a.empId, aName: a.name, aDeptId: a.deptId, bDeptId: null, bName: null, matched: false });
+                    }
+                });
+
+                tableB.forEach(b => {
+                    const matches = tableA.filter(a => a.deptId !== null && a.deptId === b.deptId);
+                    if (matches.length === 0) {
+                        results.push({ aEmpId: null, aName: null, aDeptId: null, bDeptId: b.deptId, bName: b.name, matched: false });
+                    }
+                });
+            }
+
+            renderResultTable(results);
+        }
+
+        // Render Result Table
+        function renderResultTable(results) {
+            const tbody = document.getElementById('table-result-rows');
+            document.getElementById('result-count').innerText = `${results.length} Row${results.length === 1 ? '' : 's'}`;
+
+            if (results.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="p-4 text-center text-slate-500 italic">No matching records found for this join condition.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = results.map(r => `
+                <tr class="hover:bg-slate-900/90 ${r.matched ? 'bg-emerald-950/10' : 'bg-slate-950/30'}">
+                    <td class="p-2 border-r border-slate-800 ${r.aEmpId === null ? 'text-rose-400 font-bold' : 'text-slate-300'}">
+                        ${r.aEmpId !== null ? r.aEmpId : 'NULL'}
+                    </td>
+                    <td class="p-2 border-r border-slate-800 ${r.aName === null ? 'text-rose-400 font-bold' : 'text-slate-200'}">
+                        ${r.aName !== null ? escapeHtml(r.aName) : 'NULL'}
+                    </td>
+                    <td class="p-2 border-r border-slate-800 ${r.aDeptId === null ? 'text-rose-400 font-bold' : 'text-blue-400 font-bold'}">
+                        ${r.aDeptId !== null ? r.aDeptId : 'NULL'}
+                    </td>
+                    <td class="p-2 border-r border-slate-800 ${r.bDeptId === null ? 'text-rose-400 font-bold' : 'text-purple-400 font-bold'}">
+                        ${r.bDeptId !== null ? r.bDeptId : 'NULL'}
+                    </td>
+                    <td class="p-2 ${r.bName === null ? 'text-rose-400 font-bold' : 'text-slate-200'}">
+                        ${r.bName !== null ? escapeHtml(r.bName) : 'NULL'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Update Generated SQL Text
+        function updateSQLPreview() {
+            const joinKeyword = currentJoin === 'FULL' ? 'FULL OUTER JOIN' : `${currentJoin} JOIN`;
+            const sql = `SELECT 
+    e.EmpID, 
+    e.EmpName, 
+    e.DeptID AS EmpDeptID,
+    d.DeptID AS DeptDeptID, 
+    d.DeptName
+FROM Employees e
+${joinKeyword} Departments d 
+    ON e.DeptID = d.DeptID;`;
+
+            document.getElementById('sql-preview').innerText = sql;
+        }
+
+        // Copy SQL to Clipboard
+        function copySQL() {
+            const text = document.getElementById('sql-preview').innerText;
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+
+            showToast('SQL Query copied to clipboard!');
+        }
+
+        // Toast Helper
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, 2500);
+        }
+
+        // Reset Data
+        function resetToDefaults() {
+            tableA = [
+                { id: 1, empId: 101, name: 'Alice Smith', deptId: 1 },
+                { id: 2, empId: 102, name: 'Bob Jones', deptId: 2 },
+                { id: 3, empId: 103, name: 'Charlie Brown', deptId: 1 },
+                { id: 4, empId: 104, name: 'Diana Prince', deptId: 3 },
+                { id: 5, empId: 105, name: 'Evan Wright', deptId: 5 }
+            ];
+
+            tableB = [
+                { id: 1, deptId: 1, name: 'Engineering' },
+                { id: 2, deptId: 2, name: 'Marketing' },
+                { id: 3, deptId: 3, name: 'Design' },
+                { id: 4, deptId: 4, name: 'Finance' }
+            ];
+
+            renderInputs();
+            showToast('Sample data reset to default!');
+        }
+
+        // Helper to prevent XSS in dynamic input
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;")
+                      .replace(/</g, "&lt;")
+                      .replace(/>/g, "&gt;")
+                      .replace(/"/g, "&quot;")
+                      .replace(/'/g, "&#039;");
+        }
+
+        // Initial Initialization
+        window.onload = function() {
+            renderInputs();
+            setJoinType('INNER');
+        };
+    </script>
+</body>
+</html>
